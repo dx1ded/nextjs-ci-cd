@@ -1,0 +1,124 @@
+# Action only runs when a PR from Dependabot gets merged
+name: Dependabot
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  build:
+    if: github.event.pull_request.merged && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+
+      # Cache the build output
+      - name: Cache build artifacts
+        uses: actions/cache/save@v4
+        with:
+          path: .next
+          key: ${{ runner.os }}-build-${{ github.event.pull_request.head.sha }}
+
+  create-docker-image:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Restore cached build artifacts
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .next
+          key: ${{ runner.os }}-build-${{ github.event.pull_request.head.sha }}
+          fail-on-cache-miss: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.event.pull_request.head.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.IMAGE_NAME }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  deploy:
+    needs: create-docker-image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          script: |
+            cd ./www
+            # Removing :latest image locally so it downloads the new version
+            docker rmi ${{ vars.IMAGE_NAME }}:latest
+            docker compose -p latest up traefik production -d --no-recreate
+
+  cleanup-caches:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup PR Caches
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const caches = await github.rest.actions.getActionsCacheList({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/pull/${context.payload.pull_request.number}/merge`
+            });
+            
+            for (const cache of caches.data.actions_caches) {
+              console.log(`Deleting cache: ${cache.id} (${cache.key})`);
+              await github.rest.actions.deleteActionsCacheById({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                cache_id: cache.id
+              });
+            }

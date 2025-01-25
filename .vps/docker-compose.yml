@@ -1,0 +1,67 @@
+services:
+  traefik:
+    container_name: traefik
+    image: traefik:v3.2
+    command:
+      - "--api.dashboard=false"
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      # Entrypoints setup
+      - "--entrypoints.http.address=:80" # HTTP
+      - "--entrypoints.https.address=:443" # HTTPS
+      # HTTP to HTTPS redirect
+      - "--entrypoints.http.http.redirections.entrypoint.to=https"
+      - "--entrypoints.http.http.redirections.entrypoint.scheme=https"
+      # HTTPS entrypoint settings (setting TLS and etc)
+      - "--entrypoints.https.http.tls=true"
+      - "--entrypoints.https.http.tls.certResolver=letsencrypt"
+      # ! IMPORTANT: Replace the domain with your own domain
+      - "--entrypoints.https.http.tls.domains[0].main=krustberry.xyz"
+      - "--entrypoints.https.http.tls.domains[0].sans=*.krustberry.xyz"
+      # Certificates setup
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      # ! IMPORTANT: Replace the email with your own DNS Provider
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=namedotcom"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.delayBeforeCheck=20"
+      - "--certificatesresolvers.letsencrypt.acme.email=${CERT_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80" # HTTP
+      - "443:443" # HTTPS
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - web
+
+  preview:
+    container_name: preview-${PREVIEW_IMAGE}
+    image: ${REGISTRY_NAME}:${PREVIEW_IMAGE}
+    labels:
+      - "traefik.enable=true"
+      # ! IMPORTANT: Replace the domain with your own domain
+      - "traefik.http.routers.preview-${PREVIEW_IMAGE}.rule=Host(`${PREVIEW_IMAGE}.krustberry.xyz`)"
+      - "traefik.http.middlewares.preview-auth.basicauth.users=${PREVIEW_AUTH_CREDENTIALS}"
+      - "traefik.http.routers.preview-${PREVIEW_IMAGE}.middlewares=preview-auth@docker"
+      - "traefik.http.routers.preview-${PREVIEW_IMAGE}.entrypoints=https"
+    networks:
+      - web
+
+  production:
+    container_name: production
+    image: ${REGISTRY_NAME}:${PRODUCTION_IMAGE}
+    labels:
+      - "traefik.enable=true"
+      # ! IMPORTANT: Replace the domain with your own domain
+      - "traefik.http.routers.production.rule=Host(`krustberry.xyz`)"
+      - "traefik.http.routers.production.entrypoints=https"
+    networks:
+      - web
+
+networks:
+  web:
+    external: true

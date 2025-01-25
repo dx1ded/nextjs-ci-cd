@@ -1,0 +1,135 @@
+name: Approve Release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  prepare:
+    if: github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    outputs:
+      clean_id: ${{ steps.clean_id.outputs.clean_id }}
+    steps:
+      - name: Get clean node_id
+        id: clean_id
+        run: |
+          FULL_ID="${{ github.event.pull_request.node_id }}"
+          CLEAN_ID=${FULL_ID#PR_}
+          CLEAN_ID_LOWER=$(echo $CLEAN_ID | tr '[:upper:]' '[:lower:]')
+          echo "clean_id=$CLEAN_ID_LOWER" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Replace Docker image with latest tag
+        run: |
+          # Creating another image with the :latest tag based on the image with the :{needs.prepare.outputs.clean_id} tag
+          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          docker pull ${{ vars.IMAGE_NAME }}:${{ needs.prepare.outputs.clean_id }}
+          docker tag ${{ vars.IMAGE_NAME }}:${{ needs.prepare.outputs.clean_id }} ${{ vars.IMAGE_NAME }}:latest
+          docker push ${{ vars.IMAGE_NAME }}:latest
+          docker logout
+
+          # Removing image with the :{needs.prepare.outputs.clean_id} tag from Docker Registry
+          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "${{ secrets.DOCKERHUB_USERNAME }}", "password": "${{ secrets.DOCKERHUB_PASSWORD }}"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+          curl -X DELETE -H "Authorization: JWT $TOKEN" https://hub.docker.com/v2/repositories/${{ vars.IMAGE_NAME }}/tags/${{ needs.prepare.outputs.clean_id }}
+
+      - name: Undeploy preview and deploy production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          script: |
+            cd ./www
+            # Stopping preview and production versions
+            docker compose -p ${{ needs.prepare.outputs.clean_id }} down preview
+            docker compose -p latest down production
+
+            # Removing :latest and :{needs.prepare.outputs.clean_id} images locally
+            docker rmi ${{ vars.IMAGE_NAME }}:latest
+            docker rmi ${{ vars.IMAGE_NAME }}:${{ needs.prepare.outputs.clean_id }}
+
+            docker compose -p latest up traefik production -d --no-recreate
+
+      - name: Remove in-preview label and add approved label
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.removeLabel({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'in-preview'
+            })
+
+            await github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['approved']
+            })
+
+  send-notifications:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post comment about canceling preview
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "✅ The release has been approved and deployed to production. The pull request has been merged, and the preview version has been undeployed."
+            })
+
+      - name: Send Slack notification about the new release
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ vars.SLACK_RELEASES_CHANNEL_ID }}
+            text: "🎉 New version has been released."
+            blocks:
+              - type: "header"
+                text:
+                  type: "plain_text"
+                  text: "🎉 New version has been released"
+              - type: "divider"
+              - type: "section"
+                fields:
+                  - type: "mrkdwn"
+                    text: "*Changes*: <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.html_url }}>"
+
+  cleanup-caches:
+    needs: [deploy, send-notifications]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup PR Caches
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const caches = await github.rest.actions.getActionsCacheList({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/pull/${context.payload.pull_request.number}/merge`
+            });
+            
+            for (const cache of caches.data.actions_caches) {
+              console.log(`Deleting cache: ${cache.id} (${cache.key})`);
+              await github.rest.actions.deleteActionsCacheById({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                cache_id: cache.id
+              });
+            }
