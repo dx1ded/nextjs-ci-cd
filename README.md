@@ -5,31 +5,41 @@ This repository serves as a CI/CD pipeline template for Next.js projects, design
 ## Features 🚀
 
 - Pre-commit checks: ESLint + Prettier + Husky
-- Unit Testing: Vitest
-- End-to-End Testing: Cypress
+- Testing: Vitest (Unit) / Cypress (E2E)
 - Code Coverage: Integrated using nyc
-- Docker Integration: Automatically builds and pushes Docker images
-- Environment Previews: Preview deployments for pull requests
+- Preview Deployment: Preview deployments for pull requests
 - Production Deployment: Automated after PR approval
-- Dependabot Support: Automated updates for dependencies
+- Docker: Automatically builds and pushes Docker images
+- Notifications: Slack / Github
+
+## Resources 🎥 🗺️
+
+#### Overview & Setup Videos
+
+1. CI/CD Pipeline Overview: [Watch the video](https://www.youtube.com/watch?v=Ehukyu2_mMw)
+2. CI/CD Pipeline Setup Guide: [Watch the video](https://www.youtube.com/watch?v=mXgAbCiafN8)
+
+#### CI/CD Schema
+
+View the detailed CI/CD pipeline schema on Miro: [View the schema](https://miro.com/welcomeonboard/UlJxYnlBV0hLRSt2VzMvM0UzekVtdngyYmlRaVlCUmtMUmRWR29oNm9FSWdhU09tT0ZTUnA5N3ZNSVZlWmJBL3MxRzEyRGN3QXFrbExYMEwzQ0VIUDA5bUgydnlPdFNRL1NGcGJrNUQ3RXRHMW5aTTQwVzRRVnVYNTE5NWxydFUhZQ==?share_link_id=588963981639)
 
 ## Getting Started 🛠️
 
 This repository includes everything you need to get started with a production-grade CI/CD pipeline for Next.js. You can clone it and start building your app immediately!
 
-#### 1. Clone the Repository
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/dx1ded/nextjs-ci-cd my-project
 
 cd ./my-project
 ```
 
-#### 2. Install Dependencies
+### 2. Install Dependencies
 ```bash
 pnpm install
 ```
 
-#### 3. Configure Secrets and Variables
+### 3. Configure Secrets and Variables
 
 Add the following secrets and variables to your repository’s GitHub Actions Settings under **Settings > Secrets and Variables**.
 
@@ -40,7 +50,7 @@ Add the following secrets and variables to your repository’s GitHub Actions Se
 - **VPS_HOST**: VPS host address
 - **VPS_USERNAME**: VPS username
 - **VPS_SSH_KEY**: SSH private key for VPS
-- **VPS_SSH_PASSPHRASE**: (Optional) Passphrase for SSH key
+- **VPS_SSH_PASSPHRASE**: Passphrase for SSH key
 - **SLACK_BOT_TOKEN**: Slack bot token for notifications
 
 ##### Variables:
@@ -48,57 +58,19 @@ Add the following secrets and variables to your repository’s GitHub Actions Se
 - **IMAGE_NAME**: Name of the Docker image (e.g., `user/myapp`)
 - **SLACK_RELEASES_CHANNEL_ID**: Slack channel ID for release notifications
 
-#### 4. Configure Branch Protection Rules
-
-To ensure a safe and structured workflow for your repository, you need to configure branch protection rules and GitHub Actions settings. Here’s how:
-
-##### A. Configure Branch Protection Rules
-
-###### 1. Go to Repository Settings:
-
-- Navigate to **Settings > Rules > Rulesets > New branch ruleset**.
-
-###### 2. Create a New Ruleset:
-
-- **Enforcement Status**: Set to Enabled.
-- **Add Target**: Include the default branch (e.g., main).
-
-###### 3. Set the Following Rules:
-
-- **Require a Pull Request Before Merging**:
-  - Enable **Dismiss stale pull request approvals when new commits are pushed**.
-- **Require Status Checks to Pass Before Merging**:
-  - Enable **Require branches to be up to date before merging**.
-  Under **Add checks**, include the following:
-    - preview (from your GitHub Actions workflow).
-
-##### B. Configure GitHub Actions Settings
-
-###### 1. Go to Actions Settings:
-
-- Navigate to **Settings > Actions > General**.
-
-###### 2. Set Workflow Permissions:
-
-- Choose **Read and write permissions**.
-
-###### 3. Allow Pull Request Creating by Github Actions:
-
-- Enable **Allow GitHub Actions to create and approve pull requests**.
-
-#### 5. Configure Your VPS
+### 4. Configure Your VPS
 
 Before deploying, ensure your VPS is set up correctly by following these steps:
 
-##### 1. Install Docker
+#### 1. Install Docker
 
 Make sure Docker is installed and running on your VPS. If not, refer to the official Docker installation guide: [Install Docker](https://docs.docker.com/engine/install/).
 
-##### 2. Copy Files
+#### 2. Copy Files
 
-Copy the contents of the `.vps` folder to your VPS.
+Copy the contents of the `.vps` folder to your VPS inside the `www` folder.
 
-##### 3. Configure the .env file
+#### 3. Configure the .env file
 
 Edit the `.env` file with the appropriate variables:
 
@@ -123,12 +95,60 @@ PREVIEW_IMAGE=latest
 PRODUCTION_IMAGE=latest 
 ```
 
-##### 4. Update docker-compose.yml
+#### 4. Update docker-compose.yml
 
 Edit the `docker-compose.yml` file where indicated:
 
 - Replace the domain **krustberry.xyz** with your own domain.
 - Update the DNS provider (**namedotcom**) with the provider you’re using, as per the Traefik documentation.
+
+#### 5. Create a Docker Network
+
+Execute the following command to create a Docker network:
+
+```bash
+docker network create web
+```
+
+### 5. Configure Branch Protection Rules
+
+To ensure a safe and structured workflow for your repository, you need to configure branch protection rules and GitHub Actions settings. Here’s how:
+
+#### A. Configure Branch Protection Rules
+
+##### 1. Go to Repository Settings:
+
+- Navigate to **Settings > Rules > Rulesets > New branch ruleset**.
+
+##### 2. Create a New Ruleset:
+
+- **Enforcement Status**: Set to Enabled.
+- **Add Target**: Include the default branch (e.g., main).
+
+##### 3. Set the Following Rules:
+
+- **Require a Pull Request Before Merging**:
+  - Enable **Dismiss stale pull request approvals when new commits are pushed**.
+- **Require Status Checks to Pass Before Merging**:
+  - Enable **Require branches to be up to date before merging**.
+  Under **Add checks**, include the following:
+    - `deploy-preview` (from your GitHub Actions workflow).
+   
+---
+
+#### B. Configure GitHub Actions Settings
+
+##### 1. Go to Actions Settings:
+
+- Navigate to **Settings > Actions > General**.
+
+##### 2. Set Workflow Permissions:
+
+- Choose **Read and write permissions**.
+
+##### 3. Allow Pull Request Creating by Github Actions:
+
+- Enable **Allow GitHub Actions to create and approve pull requests**.
 
 ## Contributing 🤝
 
