@@ -15,7 +15,8 @@
     "test:e2e": "start-server-and-test dev-test http://localhost:3005 \"cypress run\"",
     "test:coverage": "vitest run --coverage && cross-env CYPRESS_COVERAGE=true pnpm run test:e2e && pnpm run coverage:merge && pnpm run coverage:reporter",
     "coverage:reporter": "nyc report --nycrc-path=./.nycrc",
-    "coverage:merge": "nyc merge ./coverage ./coverage/coverage.json"
+    "coverage:merge": "nyc merge ./coverage ./coverage/coverage.json",
+    "prepare": "husky"
   },
   "dependencies": {
     "next": "15.1.5",
