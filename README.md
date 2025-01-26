@@ -150,6 +150,13 @@ To ensure a safe and structured workflow for your repository, you need to config
 
 - Enable **Allow GitHub Actions to create and approve pull requests**.
 
+### 6. Add Labels
+
+Navigate to **Settings > Labels > New Label**, and define these two labels:
+
+- `in-preview`: “PR is in a final stage, deploying the preview version”
+- `approved`: "“Approved pull request"
+
 ## Contributing 🤝
 
 Contributions are welcome! Feel free to submit issues or pull requests to improve the template.
