@@ -27,14 +27,14 @@ jobs:
       - name: Replace Docker image with latest tag
         run: |
           # Creating another image with the :latest tag based on the image with the :{needs.prepare.outputs.clean_id} tag
-          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
           docker pull ${{ vars.IMAGE_NAME }}:${{ needs.prepare.outputs.clean_id }}
           docker tag ${{ vars.IMAGE_NAME }}:${{ needs.prepare.outputs.clean_id }} ${{ vars.IMAGE_NAME }}:latest
           docker push ${{ vars.IMAGE_NAME }}:latest
           docker logout
 
           # Removing image with the :{needs.prepare.outputs.clean_id} tag from Docker Registry
-          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "${{ secrets.DOCKERHUB_USERNAME }}", "password": "${{ secrets.DOCKERHUB_PASSWORD }}"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "${{ secrets.DOCKERHUB_USERNAME }}", "password": "${{ secrets.DOCKERHUB_TOKEN }}"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
           curl -X DELETE -H "Authorization: JWT $TOKEN" https://hub.docker.com/v2/repositories/${{ vars.IMAGE_NAME }}/tags/${{ needs.prepare.outputs.clean_id }}
 
       - name: Undeploy preview and deploy production
