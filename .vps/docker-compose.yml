@@ -27,6 +27,9 @@ services:
       - "--certificatesresolvers.letsencrypt.acme.dnschallenge.delayBeforeCheck=20"
       - "--certificatesresolvers.letsencrypt.acme.email=${CERT_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    environment:
+      NAMECOM_USERNAME: ${NAMECOM_USERNAME}
+      NAMECOM_API_TOKEN: ${NAMECOM_API_TOKEN}
     ports:
       - "80:80" # HTTP
       - "443:443" # HTTPS
