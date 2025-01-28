@@ -17,7 +17,7 @@ This repository serves as a CI/CD pipeline template for Next.js projects, design
 #### Overview & Setup Videos
 
 1. CI/CD Pipeline Overview: [Watch the video](https://www.youtube.com/watch?v=Ehukyu2_mMw)
-2. CI/CD Pipeline Setup Guide: [Watch the video](https://youtu.be/HRJTVEv03oE)
+2. CI/CD Pipeline Setup Guide: [Watch the video](https://www.youtube.com/watch?v=KD7_zO9vf40)
 
 #### CI/CD Schema
 
